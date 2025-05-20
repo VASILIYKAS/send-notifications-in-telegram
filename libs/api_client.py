@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 def check_reviews(
         dvmn_api_key: str,
         long_polling_url: str,
-        last_timestamp: float = None
+        last_timestamp: str = ''
 ):
     params = {'timestamp': last_timestamp} if last_timestamp else {}
     headers = {'Authorization': f'Token {dvmn_api_key}'}
@@ -17,22 +17,7 @@ def check_reviews(
         timeout=60
     )
     response.raise_for_status()
-    work_status = response.json()
-    new_timestamp = (
-        work_status.get('last_attempt_timestamp')
-        or work_status.get('timestamp_to_request')
-    )
-
-    if work_status['status'] == 'found':
-        return {
-            'status': 'found',
-            'attempts': work_status['new_attempts'],
-            'timestamp': new_timestamp
-        }
-    return {
-        'status': work_status['status'],
-        'timestamp': new_timestamp
-    }
+    return response.json()
 
 
 def main():
