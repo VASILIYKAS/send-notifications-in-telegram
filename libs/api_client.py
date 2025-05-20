@@ -1,48 +1,38 @@
 import requests
-import time
-import os
 from dotenv import load_dotenv
 
 
-def check_reviews(last_timestamp=None):
-    DVMN_API_KEY = os.getenv('DVMN_API_KEY')
-    LONG_POLLING_URL = 'https://dvmn.org/api/long_polling/'
-
+def check_reviews(
+        dvmn_api_key: str,
+        long_polling_url: str,
+        last_timestamp: float = None
+):
     params = {'timestamp': last_timestamp} if last_timestamp else {}
-    headers = {'Authorization': f'Token {DVMN_API_KEY}'}
+    headers = {'Authorization': f'Token {dvmn_api_key}'}
 
-    try:
-        response = requests.get(
-            LONG_POLLING_URL,
-            headers=headers,
-            params=params,
-            timeout=60
-        )
-        response.raise_for_status()
-        work_status = response.json()
-        new_timestamp = (
-            work_status.get('last_attempt_timestamp')
-            or work_status.get('timestamp_to_request')
-        )
+    response = requests.get(
+        long_polling_url,
+        headers=headers,
+        params=params,
+        timeout=60
+    )
+    response.raise_for_status()
+    work_status = response.json()
+    new_timestamp = (
+        work_status.get('last_attempt_timestamp')
+        or work_status.get('timestamp_to_request')
+    )
 
-        if work_status['status'] == 'found':
-            return {
-                'status': 'found',
-                'attempts': work_status['new_attempts'],
-                'timestamp': new_timestamp
-            }
+    if work_status['status'] == 'found':
         return {
-            'status': work_status['status'],
+            'status': 'found',
+            'attempts': work_status['new_attempts'],
             'timestamp': new_timestamp
         }
-
-    except requests.exceptions.ReadTimeout:
-        return {'status': 'timeout'}
-    except requests.exceptions.ConnectionError:
-        time.sleep(5)
-        return {'status': 'connection_error'}
-    except Exception as e:
-        return {'status': 'error', 'message': str(e)}
+    return {
+        'status': work_status['status'],
+        'timestamp': new_timestamp
+    }
 
 
 def main():

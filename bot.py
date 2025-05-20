@@ -1,4 +1,5 @@
 import os
+import requests
 import time
 from textwrap import dedent
 from telegram import Update
@@ -33,7 +34,21 @@ def start(update: Update, context: CallbackContext) -> None:
 def check_reviews_job(context: CallbackContext) -> None:
     job_context = context.job.context
     last_known_timestamp = job_context.get('last_timestamp')
-    api_response = check_reviews(last_known_timestamp)
+
+    try:
+        api_response = check_reviews(
+            dvmn_api_key=os.getenv('DVMN_API_KEY'),
+            long_polling_url='https://dvmn.org/api/long_polling/',
+            last_timestamp=last_known_timestamp
+        )
+
+    except requests.exceptions.ReadTimeout:
+        return {'status': 'timeout'}
+    except requests.exceptions.ConnectionError:
+        time.sleep(5)
+        return {'status': 'connection_error'}
+    except Exception as e:
+        return {'status': 'error', 'message': str(e)}
 
     if not api_response:
         print('Нет ответ от API')
