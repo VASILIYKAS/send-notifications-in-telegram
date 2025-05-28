@@ -9,7 +9,24 @@ from telegram.ext import (
     CallbackContext
 )
 from dotenv import load_dotenv
-from libs.api_client import check_reviews
+
+
+def check_reviews(
+        dvmn_api_key: str,
+        long_polling_url: str,
+        last_timestamp: str = ''
+):
+    params = {'timestamp': last_timestamp} if last_timestamp else {}
+    headers = {'Authorization': f'Token {dvmn_api_key}'}
+
+    response = requests.get(
+        long_polling_url,
+        headers=headers,
+        params=params,
+        timeout=60
+    )
+    response.raise_for_status()
+    return response.json()
 
 
 def start(update: Update, context: CallbackContext) -> None:
@@ -31,7 +48,6 @@ def start(update: Update, context: CallbackContext) -> None:
 
 
 def check_reviews_job(context: CallbackContext) -> None:
-    print('--------- Запуск check_reviews_job -----------')
     job_context = context.job.context
     last_known_timestamp = job_context.get('last_timestamp')
 
