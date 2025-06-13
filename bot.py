@@ -1,6 +1,8 @@
 import os
+import logging
 import requests
 import time
+from logging.handlers import RotatingFileHandler
 from textwrap import dedent
 from telegram import Update
 from telegram.ext import (
@@ -9,6 +11,30 @@ from telegram.ext import (
     CallbackContext
 )
 from dotenv import load_dotenv
+
+
+logger = logging.getLogger("TelegramBot")
+logger.setLevel(logging.INFO)
+
+os.makedirs('logs', exist_ok=True)
+
+file_handler = RotatingFileHandler(
+    'bot.log',
+    maxBytes=1024*1024,
+    backupCount=3,
+    encoding='utf-8'
+)
+file_handler.setFormatter(logging.Formatter(
+    '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+))
+logger.addHandler(file_handler)
+
+
+def send_log_to_telegram(context: CallbackContext, message: str):
+    context.bot.send_message(
+        chat_id=os.environ['chat_id'],
+        text=f"Бот лог: {message}"
+    )
 
 
 def check_reviews(update: Update, context: CallbackContext):
@@ -52,9 +78,15 @@ def check_reviews(update: Update, context: CallbackContext):
         except requests.exceptions.ReadTimeout:
             continue
         except requests.exceptions.ConnectionError:
+            error_message = "Ошибка подключения, повторная попытка через 5 секунд"
+            logger.warning(error_message)
+            send_log_to_telegram(context, error_message)
             time.sleep(5)
             continue
         except requests.exceptions.HTTPError as e:
+            error_message = f"Ошибка: {e.response.status_code}"
+            logger.error(error_message)
+            send_log_to_telegram(context, error_message)
             return {'status': 'error', 'error': f"Ошибка API: {e.response.status_code}"}
 
 
@@ -69,25 +101,44 @@ def start(update: Update, context: CallbackContext) -> None:
     check_reviews(update, context)
 
 
+def error_handler(update: Update, context: CallbackContext):
+    error_msg = f"Ошибка: {context.error}"
+    logger.error(error_msg)
+
+    context.bot.send_message(
+        chat_id=os.environ['chat_id'],
+        text=f"Ошибка в боте: {error_msg}"
+    )
+
+
 def main():
     load_dotenv()
     token = os.environ['TG_BOT_TOKEN']
     if not token:
-        print(dedent("""
+        error_message = dedent("""
             Ошибка: Не указан TG_BOT_TOKEN.
             Убедитесь, что он задан в переменных окружения.
-        """))
+        """)
+        logger.error(error_message)
         return
 
     updater = Updater(token)
     dp = updater.dispatcher
 
     dp.add_handler(CommandHandler('start', start))
+    dp.add_error_handler(error_handler)
+
+    startup_message = "Бот успешно запущен!"
+    logger.info(startup_message)
 
     updater.start_polling()
-    print('Бот запущен!')
-    updater.idle()
 
+    updater.bot.send_message(
+            chat_id=os.environ['chat_id'],
+            text=startup_message
+        )
+
+    updater.idle()
 
 if __name__ == '__main__':
     main()
